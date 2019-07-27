@@ -1,0 +1,10 @@
+[Unit]
+Description=Mqtt Compass Service
+
+[Service]
+ExecStart=/home/pi/opt/compass/compass
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+
