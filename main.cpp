@@ -14,9 +14,7 @@
 int main(int argc, char *argv[])
 {
     quint32 sampleRate = 125;
-    quint16 mqttPort = 1883;
-    QString publishTopic = "compass/topic";
-    QString mqttBroker = "myhost.sample.com";
+    QString mqttBrokers = "myhost.sample.com:1883;my/bearing/topic";
     int verbosity = 0;
     qreal minx = 100;
     qreal miny = 100;
@@ -30,9 +28,7 @@ int main(int argc, char *argv[])
     // keys for arguments / configuration file
     QString keyConfFile = "conf-file";
     QString keySampleRate = "sample-rate";
-    QString keyMqttPort = "mqtt-port";
-    QString keyMqttBroker = "mqtt-broker";
-    QString keyPublishTopic = "mqtt-topic";
+    QString keyMqttBrokers = "mqtt-brokers";
     QString keyLogFile = "log-file";
     QString keyVerbosity = "verbosity";
     QString keyMinX = "minx";
@@ -60,14 +56,8 @@ int main(int argc, char *argv[])
                           {{ "c", keyConfFile},
                               QCoreApplication::translate("main", "Configuration File"),
                               QCoreApplication::translate("main", "configurationFile") },
-                          {{ "p", keyMqttPort},
-                              QCoreApplication::translate("main", "Port to connect to broker (default 1883)."),
-                              QCoreApplication::translate("main", "mqttPort") },
-                          {{ "t", keyPublishTopic},
-                              QCoreApplication::translate("main", "Topic on thich to publish compass heading."),
-                              QCoreApplication::translate("main", "publishTopic") },
-                          {{ "b", keyMqttBroker},
-                              QCoreApplication::translate("main", "MQTT broker to publish compass heading."),
+                          {{ "b", keyMqttBrokers},
+                              QCoreApplication::translate("main", "MQTT brokers to publish compass heading. This can be multiple brokers delimited by ';'."),
                               QCoreApplication::translate("main", "mqttBroker") },
                           {{ "o", keyLogFile},
                               QCoreApplication::translate("main", "Log file for output"),
@@ -102,10 +92,9 @@ int main(int argc, char *argv[])
     QSettings settings(confFile, QSettings::Format::IniFormat);
     if(QFile::exists(confFile))
     {
+        QVariant v = settings.value("Main/" + keyMqttBrokers);
         sampleRate = settings.value("Main/" + keySampleRate).toUInt();
-        mqttPort = settings.value("Main/" + keyMqttPort).toInt();
-        mqttBroker = settings.value("Main/" + keyMqttBroker).toString();
-        publishTopic = settings.value("Main/" + keyPublishTopic).toString();
+        mqttBrokers = settings.value("Main/" + keyMqttBrokers).toString();
         logFile = settings.value("Main/" + keyLogFile).toString();
         verbosity = settings.value("Main/" + keyVerbosity, 0).toInt();
         minx = settings.value("Main/" + keyMinX, 0).toFloat();
@@ -117,16 +106,9 @@ int main(int argc, char *argv[])
     if(parser.isSet(keySampleRate))
         sampleRate = parser.value(keySampleRate).toUInt();
 
-    if(parser.isSet(keyMqttPort))
-        mqttPort = parser.value(keyMqttPort).toUInt();
-
-    // get MQTT topic name
-    if(parser.isSet(keyPublishTopic))
-        publishTopic = parser.value(keyPublishTopic);
-
     // get MQTT broker address
-    if(parser.isSet(keyMqttBroker))
-        mqttBroker = parser.value(keyMqttBroker);
+    if(parser.isSet(keyMqttBrokers))
+        mqttBrokers = parser.value(keyMqttBrokers);
 
     // get x/y min/max
     if(parser.isSet(keyMinX))
@@ -171,7 +153,7 @@ int main(int argc, char *argv[])
                      arg(KLog::systemVerbosity()));
     KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
 
-    MonitorThread* monitor = new MonitorThread(mqttBroker, mqttPort, publishTopic, sampleRate, minx, maxx, miny, maxy);
+    MonitorThread* monitor = new MonitorThread(mqttBrokers, sampleRate, minx, maxx, miny, maxy);
 
     result = coreApplication.exec();
 

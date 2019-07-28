@@ -12,12 +12,7 @@ class MonitorThread : public QObject
     Q_OBJECT
 
 public:
-    MonitorThread(
-            const QString& brokerAddress,
-            quint16 brokerPort,
-            const QString& publishTopic,
-            quint32 sampleRate,
-            qreal minx, qreal maxx, qreal miny, qreal maxy);
+    MonitorThread(const QString& brokerAddresses, quint32 sampleRate, qreal minx, qreal maxx, qreal miny, qreal maxy);
     void start();
     void stop();
 
@@ -27,7 +22,7 @@ private:
     QTimer* _timer;
     QThread _thread;
 
-    QString _brokerAddress;
+    QString _brokerAddresses;
     quint16 _brokerPort;
     QString _publishTopic;
     quint32 _sampleRate;
