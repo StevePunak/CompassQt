@@ -16,10 +16,14 @@ int main(int argc, char *argv[])
     quint32 sampleRate = 125;
     QString mqttBrokers = "myhost.sample.com:1883;my/bearing/topic";
     int verbosity = 0;
-    qreal minx = 100;
-    qreal miny = 100;
-    qreal maxx = -100;
-    qreal maxy = -100;
+    qreal xadjust = 0;
+    qreal yadjust = 0;
+    qreal minx = 0;
+    qreal maxx = 0;
+    qreal miny = 0;
+    qreal maxy = 0;
+    bool calibrate = false;
+    bool autoCalibrate = false;
 
     // default location
     QString confFile = "/etc/compass/compass.conf";
@@ -31,10 +35,14 @@ int main(int argc, char *argv[])
     QString keyMqttBrokers = "mqtt-brokers";
     QString keyLogFile = "log-file";
     QString keyVerbosity = "verbosity";
+    QString keyXAdjust = "xadjust";
+    QString keyYAdjust = "yadjust";
     QString keyMinX = "minx";
     QString keyMaxX = "maxx";
     QString keyMinY = "miny";
     QString keyMaxY = "maxy";
+    QString keyCalibrate = "z";
+    QString keyAutoCalibrate = "auto-calibrate";
 
     // create the application
     QCoreApplication coreApplication(argc, argv);
@@ -62,18 +70,29 @@ int main(int argc, char *argv[])
                           {{ "o", keyLogFile},
                               QCoreApplication::translate("main", "Log file for output"),
                               QCoreApplication::translate("main", "logFile") },
-                          {{  "minx", keyMinX},
-                              QCoreApplication::translate("main", "Min X value from calibration"),
+                          {{  "x", keyXAdjust},
+                              QCoreApplication::translate("main", "X adjust value from calibration"),
+                              QCoreApplication::translate("main", "xadjust") },
+                          {{  "y", keyYAdjust},
+                              QCoreApplication::translate("main", "Y adjust value from calibration"),
+                              QCoreApplication::translate("main", "yadjust") },
+                          {{  keyMinX, keyMinX},
+                              QCoreApplication::translate("main", "Minimum value observed on X axis"),
                               QCoreApplication::translate("main", "minx") },
-                          {{  "maxx", keyMaxX},
-                              QCoreApplication::translate("main", "Max X value from calibration"),
+                          {{  keyMaxX, keyMaxX},
+                              QCoreApplication::translate("main", "Maximum value observed on X axis"),
                               QCoreApplication::translate("main", "maxx") },
-                          {{  "miny", keyMinY},
-                              QCoreApplication::translate("main", "Min Y value from calibration"),
+                          {{  keyMinY, keyMinY},
+                              QCoreApplication::translate("main", "Minimum value observed on Y axis"),
                               QCoreApplication::translate("main", "miny") },
-                          {{  "maxy", keyMaxY},
-                              QCoreApplication::translate("main", "Max Y value from calibration"),
+                          {{  keyMaxY, keyMaxY},
+                              QCoreApplication::translate("main", "Maximum value observed on Y axis"),
                               QCoreApplication::translate("main", "maxy") },
+                          {{  "a", keyAutoCalibrate},
+                              QCoreApplication::translate("main", "Do auto-calibration"),
+                              QCoreApplication::translate("main", "autoCalibrate") },
+                          {   keyCalibrate,
+                              QCoreApplication::translate("main", "calibrate") },
     });
     parser.process(coreApplication);
 
@@ -97,10 +116,13 @@ int main(int argc, char *argv[])
         mqttBrokers = settings.value("Main/" + keyMqttBrokers).toString();
         logFile = settings.value("Main/" + keyLogFile).toString();
         verbosity = settings.value("Main/" + keyVerbosity, 0).toInt();
+        xadjust = settings.value("Main/" + keyXAdjust, 0).toFloat();
+        yadjust = settings.value("Main/" + keyYAdjust, 0).toFloat();
         minx = settings.value("Main/" + keyMinX, 0).toFloat();
         maxx = settings.value("Main/" + keyMaxX, 0).toFloat();
         miny = settings.value("Main/" + keyMinY, 0).toFloat();
         maxy = settings.value("Main/" + keyMaxY, 0).toFloat();
+        autoCalibrate = settings.value("Main/" + keyAutoCalibrate, 0).toInt();
     }
 
     if(parser.isSet(keySampleRate))
@@ -110,15 +132,19 @@ int main(int argc, char *argv[])
     if(parser.isSet(keyMqttBrokers))
         mqttBrokers = parser.value(keyMqttBrokers);
 
-    // get x/y min/max
-    if(parser.isSet(keyMinX))
-        minx = parser.value(keyMinX).toFloat();
-    if(parser.isSet(keyMaxX))
-        maxx = parser.value(keyMaxX).toFloat();
-    if(parser.isSet(keyMinY))
-        miny = parser.value(keyMinY).toFloat();
-    if(parser.isSet(keyMaxY))
-        maxy = parser.value(keyMaxY).toFloat();
+    // get x/y-adjust
+    if(parser.isSet(keyXAdjust))
+        xadjust = parser.value(keyXAdjust).toFloat();
+    if(parser.isSet(keyYAdjust))
+        yadjust = parser.value(keyYAdjust).toFloat();
+
+    // calibrate?
+    if(parser.isSet(keyCalibrate))
+        calibrate = true;
+
+    // calibrate?
+    if(parser.isSet(keyAutoCalibrate))
+        autoCalibrate = true;
 
     // Verbosity
     if(parser.isSet(keyVerbosity))
@@ -133,38 +159,40 @@ int main(int argc, char *argv[])
     }
 
     int result = 0;
-    standardOutput << QString("Opening compass... witch minx=%1 maxx=%2 miny=%3 maxy=%4")
-                      .arg(QString().number(minx, 'g', 10))
-                      .arg(QString().number(maxx, 'g', 10))
-                      .arg(QString().number(miny, 'g', 10))
-                      .arg(QString().number(maxy, 'g', 10))
+    standardOutput << QString("Opening compass... with xadjust=%1 yadjust=%2")
+                      .arg(QString().number(xadjust, 'g', 10))
+                      .arg(QString().number(yadjust, 'g', 10))
                       >> endl;
 
-    KLog::setSystemLogFile(logFile);
-    KLog::setSystemVerbosity(verbosity);
-    //KLog::setSystemOutputFlags((KLog::OutputFlags)(KLog::systemOutputFlags() & ~KLog::OutputFlags::Console));
-    KLog::sysLogText(KLOG_INFO, "");
-    KLog::sysLogText(KLOG_INFO, "");
-    KLog::sysLogText(KLOG_INFO, "");
-    KLog::sysLogText(KLOG_INFO, "");
-    KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
-    KLog::sysLogText(KLOG_INFO, QString("Compass daemon started at %1. Log verbosity %2").
-                     arg(QDateTime::currentDateTimeUtc().toString()).
-                     arg(KLog::systemVerbosity()));
-    KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
+    if(true)
+    {
+        KLog::setSystemLogFile(logFile);
+        KLog::setSystemVerbosity(verbosity);
+        //KLog::setSystemOutputFlags((KLog::OutputFlags)(KLog::systemOutputFlags() & ~KLog::OutputFlags::Console));
+        KLog::sysLogText(KLOG_INFO, "");
+        KLog::sysLogText(KLOG_INFO, "");
+        KLog::sysLogText(KLOG_INFO, "");
+        KLog::sysLogText(KLOG_INFO, "");
+        KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
+        KLog::sysLogText(KLOG_INFO, QString("Compass daemon started at %1. Log verbosity %2").
+                         arg(QDateTime::currentDateTimeUtc().toString()).
+                         arg(KLog::systemVerbosity()));
+        KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
 
-    MonitorThread* monitor = new MonitorThread(mqttBrokers, sampleRate, minx, maxx, miny, maxy);
+        MonitorThread* monitor = new MonitorThread(mqttBrokers, sampleRate, xadjust, yadjust, minx, maxx, miny, maxy, autoCalibrate);
 
-    result = coreApplication.exec();
+        result = coreApplication.exec();
 
-    monitor->stop();
+        monitor->stop();
 
-    KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
-    KLog::sysLogText(KLOG_INFO, QString("Compass daemon stopped at %1").
-                     arg(QDateTime::currentDateTimeUtc().toString()));
-    KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------\n\n\n"));
-
-#ifdef DO_STATIC_CALIBRATION
+        KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------"));
+        KLog::sysLogText(KLOG_INFO, QString("Compass daemon stopped at %1").
+                         arg(QDateTime::currentDateTimeUtc().toString()));
+        KLog::sysLogText(KLOG_INFO, QString("-----------------------------------------------------------------------------------\n\n\n"));
+    }
+#if STATIC_CALIBRATION
+    else
+    {
         // begin 20 second calibration cycle
         Calibration calibration(20);
 
@@ -176,9 +204,7 @@ int main(int argc, char *argv[])
             standardOutput << QString("Adjust or replace %1 as follows:").arg(confFile) << endl;
             standardOutput << QString("[Main]") << endl;
             standardOutput << QString("sample-rate=%1").arg(sampleRate) << endl;
-            standardOutput << QString("mqtt-port=%1").arg(mqttPort) << endl;
-            standardOutput << QString("mqtt-broker=%1").arg(mqttBroker) << endl;
-            standardOutput << QString("mqtt-topic=%1").arg(publishTopic) << endl;
+            standardOutput << QString("mqtt-brokers=%1").arg(mqttBrokers) << endl;
             standardOutput << QString("log-file=%1").arg(logFile) << endl;
             standardOutput << QString("verbosity=%1").arg(verbosity) << endl;
             standardOutput << QString("xadjust=%1").arg(QString::number(calibration.xadjust(), 'g', 10)) << endl;
@@ -191,6 +217,7 @@ int main(int argc, char *argv[])
             standardOutput << "Calibration failed" << endl;
             result = 1;
         }
+    }
 #endif
     return result;
 }

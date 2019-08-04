@@ -12,7 +12,15 @@ class MonitorThread : public QObject
     Q_OBJECT
 
 public:
-    MonitorThread(const QString& brokerAddresses, quint32 sampleRate, qreal minx, qreal maxx, qreal miny, qreal maxy);
+    MonitorThread(const QString& brokerAddresses,
+                  quint32 sampleRate,
+                  qreal xadjust,
+                  qreal yadjust,
+                  qreal minx,
+                  qreal maxx,
+                  qreal miny,
+                  qreal maxy,
+                  bool autoCalibrate);
     void start();
     void stop();
 
@@ -26,7 +34,9 @@ private:
     quint16 _brokerPort;
     QString _publishTopic;
     quint32 _sampleRate;
+    qreal _xadjust, _yadjust;
     qreal _minx, _maxx, _miny, _maxy;
+    bool _autoCalibrate;
 
 private slots:
     void handleThreadStarted();

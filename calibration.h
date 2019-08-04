@@ -27,7 +27,7 @@ private:
     bool _success;
 
 private slots:
-    void handleRawValues(qreal mx, qreal my);
+    void handleRawValues(qreal mx, qreal my, qreal mz);
     void handleTimerExpired();
 };
 

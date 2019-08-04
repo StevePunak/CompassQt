@@ -9,14 +9,15 @@ Calibration::Calibration(int seconds) :
     _pollThread(nullptr),
     _timer(nullptr),
     _seconds(seconds),
-    _sampleRate(125),
+    _sampleRate(100),
     _startTime(QDateTime::currentDateTimeUtc()),
     _minx(100), _maxx(-100),
     _miny(100), _maxy(-100),
     _xadjust(0), _yadjust(0),
     _success(false)
 {
-    _pollThread = new PollThread(_sampleRate, 100, -100, 10, -100);
+    _pollThread = new PollThread(_sampleRate, 0, 0, 0, 0, 0, 0, false);
+    _pollThread->setStaticCalibrate(true);
     connect(_pollThread, &PollThread::rawValues, this, &Calibration::handleRawValues);
 
     _pollThread->start();
@@ -27,15 +28,17 @@ Calibration::Calibration(int seconds) :
 
 }
 
-void Calibration::handleRawValues(qreal mx, qreal my)
+void Calibration::handleRawValues(qreal mx, qreal my, qreal mz)
 {
+    Q_UNUSED(mz);
+
     _minx = qMin(_minx, mx);
     _maxx = qMax(_maxx, mx);
     _miny = qMin(_miny, my);
     _maxy = qMax(_maxy, my);
 
     QTextStream standardOutput(stdout);
-    standardOutput << ".";
+    standardOutput << tr("%1 %2").arg(mx).arg(my) << endl;
 }
 
 void Calibration::handleTimerExpired()
@@ -52,6 +55,7 @@ void Calibration::handleTimerExpired()
         QTextStream standardOutput(stdout);
         standardOutput << endl;
 
+        _pollThread->stop();
         QCoreApplication::quit();
     }
 }
